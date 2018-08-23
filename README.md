@@ -27,9 +27,8 @@ If you want to build this software on Windows, you'll require MinGW https://sour
 	
 2) Run from the command line
 
-	bside-adm20.exe -p 4 -m
+	bside-adm20.exe
 
-The program will display in text the current meter display and also generate a text file called "bk393.txt" which can be read in to programs like OpenBroadcaster so you can have a live on-screen-display of the multimeter.
 
 # Usage
 
