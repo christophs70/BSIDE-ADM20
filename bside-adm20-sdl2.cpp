@@ -77,6 +77,10 @@ struct glb {
 
 	struct serial_params_s serial_params;
 
+	int font_size;
+	int window_width, window_height;
+	SDL_Color font_color, background_color;
+
 };
 
 /*
@@ -143,6 +147,13 @@ int init(struct glb *g) {
 	g->com_address = NULL;
 	g->output_file = NULL;
 
+	g->font_size = 60;
+	g->window_width = 400;
+	g->window_height = 100;
+
+	g->font_color =  { 10, 255, 10 };
+	g->background_color = { 0, 0, 0 };
+
 	return 0;
 }
 
@@ -160,6 +171,9 @@ void show_help(void) {
 			"\t-d: debug enabled\r\n"
 			"\t-q: quiet output\r\n"
 			"\t-v: show version\r\n"
+			"\t-z <font size in pt>\r\n"
+			"\t-fg <foreground colour, f0f0ff>\r\n"
+			"\t-bg <background colour, 101010>\r\n"
 			"\r\n"
 			"\r\n"
 			"\texample: bside-adm20 -p /dev/ttyUSB0\r\n"
@@ -190,10 +204,31 @@ Changes:
 int parse_parameters(struct glb *g, int argc, char **argv ) {
 	int i;
 
+	if (argc == 1) {
+		show_help();
+		exit(1);
+	}
+
 	for (i = 0; i < argc; i++) {
 		if (argv[i][0] == '-') {
 			/* parameter */
 			switch (argv[i][1]) {
+
+				case 'h':
+					show_help();
+					exit(1);
+					break;
+
+				case 'z':
+					i++;
+					if (i < argc) {
+						g->font_size = atoi(argv[i]);
+					} else {
+						fprintf(stdout,"Insufficient parameters; -z <font size pts>\n");
+						exit(1);
+					}
+					break;
+
 				case 'p':
 					/*
 					 * com port can be multiple things in linux
@@ -230,6 +265,29 @@ int parse_parameters(struct glb *g, int argc, char **argv ) {
 				case 'v':
 							 fprintf(stdout,"Build %d\r\n", BUILD_VER);
 							 exit(0);
+							 break;
+
+				case 'f':
+							 if (argv[i][2] == 'g') {
+								 i++;
+								 sscanf(argv[i], "%02x%02x%02x"
+										 , &g->font_color.r
+										 , &g->font_color.g
+										 , &g->font_color.b
+										 );
+
+							 }
+							 break;
+
+				case 'b':
+							 if (argv[i][2] == 'g') {
+								 i++;
+								 sscanf(argv[i], "%02x%02x%02x"
+										 , &g->background_color.r
+										 , &g->background_color.g
+										 , &g->background_color.b
+										 );
+							 }
 							 break;
 
 				case 's':
@@ -329,6 +387,13 @@ int main ( int argc, char **argv ) {
 	 */
 	parse_parameters(&g, argc, argv);
 
+	/* 
+	 * check paramters
+	 *
+	 */
+	if (g.font_size < 10) g.font_size = 10;
+	if (g.font_size > 200) g.font_size = 200;
+
 	if (g.output_file) snprintf(tfn,sizeof(tfn),"%s.tmp",g.output_file);
 
 	/*
@@ -343,15 +408,24 @@ int main ( int argc, char **argv ) {
 
 	SDL_Init(SDL_INIT_VIDEO);
 	TTF_Init();
+	TTF_Font *font = TTF_OpenFont("RobotoMono-Regular.ttf", g.font_size);
 
-	SDL_Window *window = SDL_CreateWindow("BSIDE ADM20", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 640, 100, 0);
+	TTF_SizeText(font, "-12.34mV  ", &g.window_width, &g.window_height);
+
+	SDL_Window *window = SDL_CreateWindow("BSIDE ADM20", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, g.window_width, g.window_height, 0);
 	SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, 0);
-	TTF_Font *font = TTF_OpenFont("RobotoMono-Regular.ttf", 70);
 	if (!font) {
 		fprintf(stderr,"Error trying to open font :( \r\n");
 		exit(1);
 	}
-	SDL_Color color = { 55, 255, 55 };
+
+	/* Select the color for drawing. It is set to red here. */
+   SDL_SetRenderDrawColor(renderer, g.background_color.r, g.background_color.g, g.background_color.b, 255 );
+
+   /* Clear the entire screen to our selected color. */
+   SDL_RenderClear(renderer);
+
+	//SDL_Color color = { 55, 255, 55 };
 
 
 	/*
@@ -368,12 +442,12 @@ int main ( int argc, char **argv ) {
 		ssize_t bytes_read = 0;
 
 		while (SDL_PollEvent(&event)) {
-        switch (event.type)
-        {
-            case SDL_QUIT:
-                quit = true;
-                break;
-        }
+			switch (event.type)
+			{
+				case SDL_QUIT:
+					quit = true;
+					break;
+			}
 		}
 
 		linetmp[0] = '\0';
@@ -523,7 +597,7 @@ int main ( int argc, char **argv ) {
 
 		{
 			SDL_RenderClear(renderer);
-			surface = TTF_RenderUTF8_Solid(font, line1, color);
+			surface = TTF_RenderUTF8_Solid(font, line1, g.font_color);
 			texture = SDL_CreateTextureFromSurface(renderer, surface);
 
 			int texW = 0;
